@@ -1,0 +1,40 @@
+{
+  "users": 943,
+  "diversity": 0.45,
+  "balance": 0.3,
+  "seed": 42,
+  "methods": {
+    "Top-k": {
+      "recall@10": 0.059385,
+      "ndcg@10": 0.027017,
+      "relevance": 0.921329,
+      "similarity": 0.572362,
+      "genre_error": 0.497816,
+      "runtime_ms": 6.280759
+    },
+    "MMR": {
+      "recall@10": 0.078473,
+      "ndcg@10": 0.033224,
+      "relevance": 0.881913,
+      "similarity": 0.47808,
+      "genre_error": 0.496329,
+      "runtime_ms": 8.787401
+    },
+    "Genre quota": {
+      "recall@10": 0.053022,
+      "ndcg@10": 0.024997,
+      "relevance": 0.91877,
+      "similarity": 0.569446,
+      "genre_error": 0.480061,
+      "runtime_ms": 14.267578
+    },
+    "QUBO": {
+      "recall@10": 0.049841,
+      "ndcg@10": 0.02369,
+      "relevance": 0.747935,
+      "similarity": 0.332112,
+      "genre_error": 0.350166,
+      "runtime_ms": 26.652406
+    }
+  }
+}

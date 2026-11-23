@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explainable Movie Recommender</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f3ee;color:#172421;font:16px system-ui,sans-serif}
+main{max-width:1230px;margin:auto;padding:34px 22px 60px}header{margin-bottom:24px}
+h1{margin:0;font-size:clamp(1.9rem,4vw,3.4rem);letter-spacing:-.055em}h2{margin:0 0 12px}
+p{margin:8px 0;color:#41534d}section,details,article{background:#fff;border:1px solid #d9ded7;border-radius:14px;padding:16px}
+section,details{margin:14px 0}form{display:flex;align-items:end;gap:20px;flex-wrap:wrap}label{display:grid;gap:6px;font-weight:600}
+button,select{font:inherit;border:1px solid #aab8ad;border-radius:8px;padding:8px 12px;background:white;color:inherit}
+button{background:#145446;color:white;cursor:pointer;border-color:#145446}button:disabled{opacity:.5;cursor:wait}
+input{accent-color:#145446}summary{cursor:pointer;font-weight:700}#comparison{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px}
+article:last-child{border-color:#145446}ol{padding-left:24px}li{padding:8px 0;border-bottom:1px solid #e9ece7}
+small{display:block;color:#42564c;margin-top:3px}table{border-collapse:collapse;width:100%;min-width:580px}
+td,th{text-align:left;padding:8px;border-bottom:1px solid #d9ded7}.scroll{overflow:auto}#status,#saved{min-height:1.4em}
+</style>
+<main>
+<header><h1>Explainable Movie Recommender</h1><p>Compare four ways to rank 10 unseen movies from MovieLens 100K.</p></header>
+<section aria-label="Recommendation controls">
+<form id="controls">
+<label>MovieLens user<select id="user" required></select></label>
+<label>Diversity <output id="dval">0.45</output><input id="diversity" type="range" min="0" max="1" step="0.05" value="0.45"></label>
+<label>Genre balance <output id="bval">0.30</output><input id="balance" type="range" min="0" max="1" step="0.05" value="0.30"></label>
+<button id="run" disabled>Get recommendations</button>
+</form>
+<p id="status" role="status"></p>
+</section>
+<details><summary id="history-label">User history</summary><p id="history"></p></details>
+<div id="comparison"></div>
+<section>
+<h2>Record your judgment</h2>
+<form id="judgment">
+<label>Most relevant list<select id="relevance" required></select></label>
+<label>Most varied list<select id="variety" required></select></label>
+<button id="save" disabled>Save judgment</button>
+</form>
+<p id="saved" role="status"></p>
+</section>
+<details><summary>Offline evaluation</summary><div class="scroll" id="metrics"></div></details>
+</main>
+<script>
+const el = id => document.getElementById(id);
+function node(tag, text) {
+  const item = document.createElement(tag);
+  item.textContent = text;
+  return item;
+}
+async function request(path, options) {
+  const response = await fetch(path, options);
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error);
+  return body;
+}
+function table(headers, rows) {
+  const result = node('table', '');
+  for (const [index, values] of [headers, ...rows].entries()) {
+    const row = result.insertRow();
+    for (const value of values) row.append(node(index === 0 ? 'th' : 'td', value));
+  }
+  return result;
+}
+function render(methods) {
+  const cards = Object.entries(methods).map(([name, result]) => {
+    const card = node('article', '');
+    card.append(node('h2', name),
+      node('p', 'Relevance ' + result.relevance.toFixed(2) +
+        ' · Similarity ' + result.similarity.toFixed(3) +
+        ' · Genre gap ' + result.genre_error.toFixed(2)),
+      node('small', 'Genre exposure: ' + Object.entries(result.exposure)
+        .map(([genre, value]) => genre + ' ' + value.toFixed(2)).join(' · ')));
+    const list = node('ol', '');
+    for (const movie of result.movies) {
+      const entry = node('li', '');
+      entry.append(node('strong', movie.title),
+        node('small', movie.genres.join(' · ') + ' | relevance ' + movie.relevance.toFixed(2)),
+        node('small', movie.reasons.length ? 'Related to: ' + movie.reasons.join(', ') : 'No matching history items'));
+      list.append(entry);
+    }
+    card.append(list);
+    return card;
+  });
+  el('comparison').replaceChildren(...cards);
+}
+let displayed;
+async function recommend(event) {
+  if (event) event.preventDefault();
+  const settings = {user: el('user').value, diversity: el('diversity').value, balance: el('balance').value};
+  el('run').disabled = el('save').disabled = true;
+  el('status').textContent = 'Generating recommendations…';
+  el('saved').textContent = '';
+  try {
+    const data = await request('/api/recommend?' + new URLSearchParams(settings));
+    render(data.methods);
+    el('history-label').textContent = 'User history (' + data.history.length + ' movies)';
+    el('history').textContent = data.history.join(' · ');
+    el('status').textContent = 'Showing user ' + settings.user + ' · diversity ' +
+      settings.diversity + ' · genre balance ' + settings.balance;
+    el('judgment').reset();
+    displayed = settings;
+  } catch (error) {
+    el('status').textContent = error.message;
+  } finally {
+    el('run').disabled = false;
+    el('save').disabled = !displayed;
+  }
+}
+el('controls').addEventListener('submit', recommend);
+for (const [input, output] of [['diversity','dval'],['balance','bval']]) {
+  el(input).addEventListener('input', () => el(output).value = Number(el(input).value).toFixed(2));
+}
+el('judgment').addEventListener('submit', async event => {
+  event.preventDefault();
+  el('save').disabled = true;
+  try {
+    await request('/api/judgment', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({...displayed, relevance:el('relevance').value, variety:el('variety').value})});
+    el('saved').textContent = 'Judgment saved.';
+    el('judgment').reset();
+  } catch (error) {
+    el('saved').textContent = error.message;
+  } finally {
+    el('save').disabled = !displayed || el('run').disabled;
+  }
+});
+for (const id of ['relevance','variety']) {
+  el(id).add(new Option('Choose a list',''));
+  for (const name of ['Top-k','MMR','Genre quota','QUBO','Tie']) el(id).add(new Option(name,name));
+}
+request('/api/users').then(users => {
+  for (const user of users) el('user').add(new Option(user,user));
+  recommend();
+}).catch(error => el('status').textContent = error.message);
+request('/api/results').then(data => {
+  if (!data.methods) {
+    el('metrics').textContent = 'Run evaluate.py to generate offline results.';
+    return;
+  }
+  const keys = ['recall@10','ndcg@10','similarity','genre_error','runtime_ms'];
+  el('metrics').append(node('p', data.users + ' users · diversity ' + data.diversity +
+    ' · genre balance ' + data.balance + ' · seed ' + data.seed),
+    table(['Method','Recall@10','NDCG@10','Similarity','Genre gap','Runtime (ms)'],
+      Object.entries(data.methods).map(([method, row]) => [method,...keys.map(key => row[key].toFixed(4))])));
+}).catch(error => el('metrics').textContent = error.message);
+</script>
