@@ -30,6 +30,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send((ROOT / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif url.path == "/api/users":
             self.json(list(self.server.model.history))
+        elif url.path == "/api/movies":
+            movies = self.server.model.movies
+            self.json([{"id": item, "title": title} for item, (title, _) in movies.items()])
         elif url.path == "/api/results":
             path = ROOT / "results.json"
             self.json(json.loads(path.read_text(encoding="utf-8")) if path.exists() else {})
@@ -37,16 +40,22 @@ class Handler(BaseHTTPRequestHandler):
             fields = parse_qs(url.query)
             model = self.server.model
             try:
-                user = int(fields["user"][0])
+                if "movie" in fields:
+                    history = list(dict.fromkeys(map(int, fields["movie"])))
+                    if not 3 <= len(history) <= 20 or any(item not in model.movies for item in history):
+                        self.json({"error": "Choose 3 to 20 distinct movies from the catalog."}, 400)
+                        return
+                else:
+                    history = model.history[int(fields["user"][0])]
                 diversity = float(fields["diversity"][0])
                 balance = float(fields["balance"][0])
-                if user not in model.history or not (0 <= diversity <= 1 and 0 <= balance <= 1):
+                if not (0 <= diversity <= 1 and 0 <= balance <= 1):
                     raise ValueError
             except (ValueError, KeyError):
                 self.json({"error": "Choose a valid user and weights between 0 and 1."}, 400)
                 return
-            self.json({"history": [model.movies[item][0] for item in model.history[user]],
-                       "methods": model.run(user, diversity, balance)})
+            self.json({"history": [model.movies[item][0] for item in history],
+                       "methods": model.run_history(history, diversity, balance)})
         else:
             self.json({"error": "Page not found."}, 404)
 

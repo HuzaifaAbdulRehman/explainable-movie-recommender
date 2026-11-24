@@ -13,6 +13,10 @@ button,select{font:inherit;border:1px solid #aab8ad;border-radius:8px;padding:8p
 button{background:#145446;color:white;cursor:pointer;border-color:#145446}button:disabled{opacity:.5;cursor:wait}
 input{accent-color:#145446}summary{cursor:pointer;font-weight:700}#comparison{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px}
 article:last-child{border-color:#145446}ol{padding-left:24px}li{padding:8px 0;border-bottom:1px solid #e9ece7}
+#favorites{flex-basis:100%;display:grid;grid-template-columns:minmax(200px,1fr) auto;gap:10px;align-items:end}
+#favorites[hidden],#dataset-user[hidden]{display:none}
+#favorites label:first-child,#pick-count{grid-column:1/-1}#movie-search{font:inherit;padding:8px;max-width:380px}
+#favorites select{width:100%;min-width:0}
 small{display:block;color:#42564c;margin-top:3px}table{border-collapse:collapse;width:100%;min-width:580px}
 td,th{text-align:left;padding:8px;border-bottom:1px solid #d9ded7}.scroll{overflow:auto}#status,#saved{min-height:1.4em}
 </style>
@@ -20,7 +24,16 @@ td,th{text-align:left;padding:8px;border-bottom:1px solid #d9ded7}.scroll{overfl
 <header><h1>Explainable Movie Recommender</h1><p>Compare four ways to rank 10 unseen movies from MovieLens 100K.</p></header>
 <section aria-label="Recommendation controls">
 <form id="controls">
-<label>MovieLens user<select id="user" required></select></label>
+<label>Profile<select id="profile"><option value="dataset">MovieLens user</option><option value="custom">New user</option></select></label>
+<label id="dataset-user">MovieLens user<select id="user" required></select></label>
+<div id="favorites" hidden>
+<label>Search movies you watched and liked<input id="movie-search" type="search" placeholder="Search by title"></label>
+<label>Matching titles<select id="movie-matches"></select></label>
+<button type="button" id="add-movie" disabled>Add movie</button>
+<label>Selected movies<select id="picked"></select></label>
+<button type="button" id="remove-movie" disabled>Remove movie</button>
+<p id="pick-count" role="status">Select 3 to 20 movies.</p>
+</div>
 <label>Diversity <output id="dval">0.45</output><input id="diversity" type="range" min="0" max="1" step="0.05" value="0.45"></label>
 <label>Genre balance <output id="bval">0.30</output><input id="balance" type="range" min="0" max="1" step="0.05" value="0.30"></label>
 <button id="run" disabled>Get recommendations</button>
@@ -84,25 +97,99 @@ function render(methods) {
   el('comparison').replaceChildren(...cards);
 }
 let displayed;
+let catalog;
+let requesting = false;
+const favorites = new Map();
+const customMode = () => el('profile').value === 'custom';
+
+function updateRunButton() {
+  el('run').disabled = requesting || (customMode() ? favorites.size < 3 : !el('user').value);
+}
+
+function renderMatches() {
+  const query = el('movie-search').value.trim().toLowerCase();
+  const matches = catalog && query && favorites.size < 20
+    ? catalog.filter(movie => !favorites.has(movie.id) && movie.title.toLowerCase().includes(query)).slice(0, 20)
+    : [];
+  el('movie-matches').replaceChildren(...matches.map(movie => new Option(movie.title, movie.id)));
+  el('add-movie').disabled = matches.length === 0;
+}
+
+function renderFavorites() {
+  el('picked').replaceChildren(...[...favorites].map(([id, title]) => new Option(title, id)));
+  el('remove-movie').disabled = favorites.size === 0;
+  el('pick-count').textContent = favorites.size + ' selected. Choose 3 to 20 movies.';
+  renderMatches();
+  updateRunButton();
+}
+
+el('movie-search').addEventListener('input', renderMatches);
+el('movie-search').addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    el('add-movie').click();
+  }
+});
+el('add-movie').addEventListener('click', () => {
+  const match = el('movie-matches').selectedOptions[0];
+  if (!match || favorites.size >= 20) return;
+  favorites.set(Number(match.value), match.text);
+  el('movie-search').value = '';
+  renderFavorites();
+  el('movie-search').focus();
+});
+el('remove-movie').addEventListener('click', () => {
+  favorites.delete(Number(el('picked').value));
+  renderFavorites();
+});
+el('profile').addEventListener('change', async () => {
+  const custom = customMode();
+  el('dataset-user').hidden = custom;
+  el('favorites').hidden = !custom;
+  el('judgment').closest('section').hidden = custom;
+  el('save').disabled = custom || !displayed;
+  updateRunButton();
+  if (custom && !catalog) {
+    try {
+      catalog = await request('/api/movies');
+      renderMatches();
+    } catch (error) {
+      el('status').textContent = error.message;
+    }
+  }
+});
 async function recommend(event) {
   if (event) event.preventDefault();
-  const settings = {user: el('user').value, diversity: el('diversity').value, balance: el('balance').value};
+  if (requesting || el('run').disabled) return;
+  const settings = {diversity: el('diversity').value, balance: el('balance').value};
+  const custom = customMode();
+  const query = new URLSearchParams(settings);
+  if (custom) {
+    for (const id of favorites.keys()) query.append('movie', id);
+  } else {
+    settings.user = el('user').value;
+    query.set('user', settings.user);
+  }
+  requesting = true;
+  el('profile').disabled = true;
   el('run').disabled = el('save').disabled = true;
   el('status').textContent = 'Generating recommendations…';
   el('saved').textContent = '';
   try {
-    const data = await request('/api/recommend?' + new URLSearchParams(settings));
+    const data = await request('/api/recommend?' + query);
     render(data.methods);
     el('history-label').textContent = 'User history (' + data.history.length + ' movies)';
     el('history').textContent = data.history.join(' · ');
-    el('status').textContent = 'Showing user ' + settings.user + ' · diversity ' +
+    el('status').textContent = (custom ? 'Showing new user' : 'Showing user ' + settings.user) + ' · diversity ' +
       settings.diversity + ' · genre balance ' + settings.balance;
     el('judgment').reset();
-    displayed = settings;
+    displayed = custom ? undefined : settings;
   } catch (error) {
     el('status').textContent = error.message;
   } finally {
-    el('run').disabled = false;
+    requesting = false;
+    el('profile').disabled = false;
+    updateRunButton();
     el('save').disabled = !displayed;
   }
 }
@@ -130,7 +217,8 @@ for (const id of ['relevance','variety']) {
 }
 request('/api/users').then(users => {
   for (const user of users) el('user').add(new Option(user,user));
-  recommend();
+  updateRunButton();
+  if (!customMode()) recommend();
 }).catch(error => el('status').textContent = error.message);
 request('/api/results').then(data => {
   if (!data.methods) {

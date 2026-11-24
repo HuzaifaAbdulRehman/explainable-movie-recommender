@@ -51,14 +51,18 @@ macOS or Linux:
 
 Open [http://127.0.0.1:8765](http://127.0.0.1:8765) and keep the terminal open during the demo. Press **Ctrl+C** in the terminal to stop the server.
 
-1. Select a MovieLens user and click **Get recommendations**.
+1. Choose a MovieLens user or select **New user**. For a new user, search the catalog and add 3 to 20 movies you watched and liked. Click **Get recommendations**. The selected movies become your history and stay out of the recommendation lists.
 2. Open **User history** and compare the Top-k, MMR, Genre quota and QUBO lists. Each list should show 10 movies.
 3. Change the **Diversity** and **Genre balance** sliders and click **Get recommendations** again. With both sliders at zero, QUBO keeps the Top-k list.
-4. Open **Offline evaluation** to see the 943-user benchmark. Use **Record your judgment** to save relevance and variety preferences in the local `judgments.csv`.
+4. Open **Offline evaluation** to see the 943-user benchmark. In MovieLens user mode, use **Record your judgment** to save relevance and variety preferences in the local `judgments.csv`.
 
 ![Four recommendation lists for MovieLens user 1](docs/screenshots/demo.png)
 
 The running demo compares all four methods on the same MovieLens profile.
+
+![New user recommendations based on three selected favorites](docs/screenshots/new-user.png)
+
+New User mode uses the movies you select as your history.
 
 ## 4. Run the tests and benchmark
 
@@ -78,7 +82,7 @@ Open a second terminal in the project folder if you want to leave the demo runni
 .venv/bin/python evaluate.py
 ```
 
-The two tests should finish with `OK`. They cover the dataset split, movie mapping, unique recommendations outside the user's history, and fixed-seed repeatability. Evaluation runs all 943 users and rewrites `results.json`. Refresh the demo to see the updated numbers. Timing varies by laptop.
+The tests should finish with `OK`. They cover the dataset split, movie mapping, unique recommendations outside the user's history, and fixed-seed repeatability. Evaluation runs all 943 users and rewrites `results.json`. Refresh the demo to see the updated numbers. Timing varies by laptop.
 
 The [research report](Report.pdf) is also available as [LaTeX source](Report.tex).
 

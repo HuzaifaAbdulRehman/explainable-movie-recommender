@@ -53,8 +53,10 @@ class Model:
         self.target[0] = 0
 
     def run(self, user, diversity=0.45, balance=0.30, seed=42, *, explain=True):
+        return self.run_history(self.history[user], diversity, balance, seed, explain=explain)
+
+    def run_history(self, history, diversity=0.45, balance=0.30, seed=42, *, explain=True):
         started = perf_counter()
-        history = self.history[user]
         related = self.similarity[:, history]
         count = min(20, len(history))
         neighbors = np.partition(related, -count, axis=1)[:, -count:]

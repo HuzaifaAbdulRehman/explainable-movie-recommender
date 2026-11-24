@@ -26,5 +26,18 @@ class RecommenderTest(unittest.TestCase):
                 self.assertFalse(set(ids).intersection(self.model.history[user]))
                 self.assertEqual(first[method]["movies"], second[method]["movies"])
 
+
+    def test_custom_profile(self):
+        favorites = [1, 71, 95]
+        results = self.model.run_history(favorites)
+        for result in results.values():
+            ids = {movie["id"] for movie in result["movies"]}
+            self.assertEqual(len(ids), 10)
+            self.assertFalse(ids.intersection(favorites))
+        known = set(self.model.movies[item][0] for item in favorites)
+        explained = [reason for row in results["QUBO"]["movies"] for reason in row["reasons"]]
+        self.assertTrue(explained)
+        self.assertTrue(set(explained).issubset(known))
+
 if __name__ == "__main__":
     unittest.main()
