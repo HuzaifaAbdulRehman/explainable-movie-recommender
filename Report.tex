@@ -1,32 +1,39 @@
-\documentclass[11pt,a4paper]{article}
+\documentclass[10pt,a4paper]{article}
 \usepackage[T1]{fontenc}
-\usepackage[margin=23mm]{geometry}
-\usepackage{booktabs}
+\usepackage[left=22mm,right=22mm,top=19mm,bottom=19mm]{geometry}
+\usepackage{booktabs,lmodern,xcolor}
+\definecolor{paperblue}{HTML}{173658}
 \usepackage{amsmath}
 \usepackage[hidelinks]{hyperref}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{5pt}
+\setlength{\parskip}{4pt}
+\setlength{\abovecaptionskip}{0pt}
+\setlength{\belowcaptionskip}{5pt}
 \begin{document}
-{\LARGE\bfseries Explainable Movie Recommendations\\with QUBO Reranking\par}
-\vspace{8pt}
-Recommender System \textbar{} Fall 2026 \textbar{} Section 7B\\
-Instructor: Syed Zain Ul Hassan
+{\small\bfseries\color{paperblue} Recommender System Course Project\par}
+\vspace{3pt}
+{\color{paperblue}\hrule}
+\vspace{10pt}
+{\LARGE\bfseries\color{paperblue} Explainable Movie Recommendations\\with QUBO Reranking\par}
+\vspace{7pt}
+{\small Fall 2026 \textbar{} Section 7B \textbar{} Instructor: Syed Zain Ul Hassan\par}
+\vspace{4pt}
+{\small
+Huzaifa Abdul Rehman, Noman Ahmed Khan, Muhammad Masab, and Ajay Kumar\par}
 
-Huzaifa Abdul Rehman, Noman Ahmed Khan, Muhammad Masab, and Ajay Kumar
+\medskip
+\textbf{Abstract.} We study whether a quadratic unconstrained binary optimization (QUBO) objective can diversify movie recommendations while retaining held-out relevance. We retrieve candidates with item-based collaborative filtering and compare four methods on 943 MovieLens 100K users. At the evaluated weights, QUBO reduces mean pairwise similarity by 42\% and genre exposure gap by 30\% relative to Top-k. MMR achieves the highest Recall@10 and NDCG@10. The results quantify the trade-off between held-out retrieval, diversity, and genre coverage in this setting.
 
-\begin{abstract}
-We study whether a quadratic unconstrained binary optimization (QUBO) objective can diversify movie recommendations while retaining held-out relevance. We retrieve candidates with item-based collaborative filtering and compare four methods on 943 MovieLens 100K users. At the evaluated weights, QUBO reduces mean pairwise similarity by 42\% and genre exposure gap by 30\% relative to Top-k. MMR achieves the highest Recall@10 and NDCG@10. The results quantify the trade-off between held-out retrieval, diversity, and genre coverage in this setting.
-\end{abstract}
 
 \section{Introduction}
 Top-ranked collaborative recommendations can contain movies that appeal to similar audiences. We test whether a reranker can reduce that redundancy and spread exposure across genres within the same candidate pool. We also show which history items contributed to each recommended movie's retrieval score.
 
-\section{Data and candidate retrieval}
-We use MovieLens 100K, which contains 100,000 observations from 943 users across 1,682 movies. For each user, we reserve the latest interaction for testing, breaking timestamp ties by reserving the larger movie ID. The remaining 99,057 observations form a binary user--item matrix. Any observed training rating counts as an interaction. A held-out interaction therefore measures whether the system retrieves an observed movie, regardless of the user's rating.
+\section{Data and Candidate Retrieval}
+We use MovieLens 100K~\cite{movielens}, which contains 100,000 observations from 943 users across 1,682 movies. For each user, we reserve the latest interaction for testing, breaking timestamp ties by reserving the larger movie ID. The remaining 99,057 observations form a binary user--item matrix. Any observed training rating counts as an interaction. A held-out interaction therefore measures whether the system retrieves an observed movie, regardless of the user's rating.
 
 For movies $i,j$ with $n_i,n_j$ training interactions and $c_{ij}$ shared users, the similarity is $c_{ij}/\sqrt{n_i n_j}$ multiplied by $c_{ij}/(c_{ij}+10)$. Pairs without support and the diagonal have similarity zero. A candidate's score sums its similarities to the user's 20 closest history items, or all available items when the history is shorter. We exclude training-history movies and keep the 60 highest-scoring candidates. Each relevance score $r_i$ is divided by the highest candidate score for that user.
 
-\section{Reranking and explanations}
+\section{Reranking and Explanations}
 For each candidate $i$, the binary variable $x_i$ indicates whether we include the movie. For multi-genre films we divide one unit of exposure equally across the listed genres, giving vector $g_i$. The target $t$ spreads ten units equally across the 18 known genres and assigns zero to Unknown. We minimize
 \[
 -\sum_i r_i x_i
@@ -36,30 +43,31 @@ For each candidate $i$, the binary variable $x_i$ indicates whether we include t
 \]
 The squared term expands into linear and pairwise binary terms. Feasible simulated annealing starts at Top-k and proposes 600 selected/unselected swaps on the CPU. It accepts improving swaps and sometimes accepts worsening swaps according to the temperature schedule. It returns the best set found. A fixed seed reproduces membership. The final list orders the chosen movies by retrieval relevance.
 
-Top-k takes the ten highest retrieval scores. MMR greedily subtracts a penalty proportional to maximum similarity to the current list. Genre quota greedily takes the highest-scoring movie within a two-unit per-genre cap, choosing the smallest excess when necessary. All methods share the same candidate pool and final ordering. The demo shows up to three positive history contributors per movie, plus mean relevance, mean pairwise similarity and genre exposure for each list.
+Top-k takes the ten highest retrieval scores. Maximal Marginal Relevance (MMR)~\cite{mmr} greedily subtracts a penalty proportional to maximum similarity to the current list. Genre quota greedily takes the highest-scoring movie within a two-unit per-genre cap, choosing the smallest excess when necessary. All methods share the same candidate pool and final ordering. The demo shows up to three positive history contributors per movie, plus mean relevance, mean pairwise similarity and genre exposure for each list.
 
 
-\section{Offline evaluation}
+\clearpage
+\section{Offline Evaluation}
 We evaluate all 943 users, with seed 42, diversity weight 0.45 and genre balance weight 0.30. Recall@10 counts a hit if the held-out movie appears in the list. NDCG@10 discounts the hit by rank. Similarity is the mean shrunk cosine over distinct movie pairs. Genre gap is the total variation distance between the observed and target genre shares. Runtime includes shared candidate retrieval and each method's selection, excluding model construction and explanation formatting.
 
 \begin{table}[htbp]
 \centering
-\caption{Mean results across 943 MovieLens users. Lower similarity and genre gap indicate greater diversity and closer agreement with the genre target.}
+\caption{Mean performance across 943 MovieLens users.}
 \begin{tabular}{lrrrrr}
 \toprule
-Method & Recall@10 & NDCG@10 & Similarity & Genre gap & Mean ms\\
+Method & Recall@10 & NDCG@10 & Similarity & Genre gap & Time (ms)\\
 \midrule
-Top-k       & 0.0594 & 0.0270 & 0.5724 & 0.4978 & 6.28\\
-MMR         & 0.0785 & 0.0332 & 0.4781 & 0.4963 & 8.79\\
+Top-k       & 0.0594 & 0.0270 & 0.5724 & 0.4978 & \textbf{6.28}\\
+MMR         & \textbf{0.0785} & \textbf{0.0332} & 0.4781 & 0.4963 & 8.79\\
 Genre quota & 0.0530 & 0.0250 & 0.5694 & 0.4801 & 14.27\\
-QUBO        & 0.0498 & 0.0237 & 0.3321 & 0.3502 & 26.65\\
+QUBO        & 0.0498 & 0.0237 & \textbf{0.3321} & \textbf{0.3502} & 26.65\\
 \bottomrule
 \end{tabular}
 \end{table}
 
 QUBO reduced mean similarity by about 42\% and genre gap by about 30\% relative to Top-k. It also retrieved fewer held-out movies and took about four times as long. MMR achieved the strongest held-out ranking metrics in this run. The balance target is uniform by design, so lower genre gap measures adherence to that target. It does not measure whether an individual prefers a more balanced list.
 
-\section{Demo and limitations}
+\section{Demo and Limitations}
 Select a user in the local interface and compare the same history across all four lists. At zero reranking weights, QUBO keeps the Top-k list. Increasing the diversity weight penalizes co-consumed pairs. Increasing genre balance penalizes squared deviations from target exposure. The effects depend on the candidate pool and on the sets the annealer explores. The solver does not certify optimality.
 
 Only one observed event per user is available for ranking evaluation. Training histories are split per user, so the protocol does not simulate a single global point in time. Binary feedback discards rating strength, and movie co-consumption is only a proxy for perceived similarity. The demo records a visitor's preferred list for relevance and variety in a local CSV. We have not collected participant responses, so we report only offline measurements.
@@ -69,8 +77,12 @@ The tests verify the split, a known movie title, unseen and unique recommendatio
 \section{Conclusion}
 At the chosen weights, QUBO gave the least redundant lists and the closest fit to the uniform genre target. MMR provided the strongest held-out ranking scores with less computation. These results establish the trade-off for the evaluated weights and dataset. A study with participant responses could test whether the measured diversity gains translate to a preference for the QUBO lists.
 
-\section*{References}
+\begin{thebibliography}{9}
+\small
+\bibitem{movielens}
 F. M. Harper and J. A. Konstan. The MovieLens Datasets: History and Context. \emph{ACM Transactions on Interactive Intelligent Systems}, 5(4), 2015. \href{https://doi.org/10.1145/2827872}{doi:10.1145/2827872}.
 
+\bibitem{mmr}
 J. Carbonell and J. Goldstein. The Use of MMR, Diversity-Based Reranking for Reordering Documents and Producing Summaries. \emph{SIGIR}, 1998. \href{https://doi.org/10.1145/290941.291025}{doi:10.1145/290941.291025}.
+\end{thebibliography}
 \end{document}
