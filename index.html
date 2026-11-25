@@ -4,45 +4,145 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Explainable Movie Recommender</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f4f3ee;color:#172421;font:16px system-ui,sans-serif}
-main{max-width:1230px;margin:auto;padding:34px 22px 60px}header{margin-bottom:24px}
-h1{margin:0;font-size:clamp(1.9rem,4vw,3.4rem);letter-spacing:-.055em}h2{margin:0 0 12px}
-p{margin:8px 0;color:#41534d}section,details,article{background:#fff;border:1px solid #d9ded7;border-radius:14px;padding:16px}
-section,details{margin:14px 0}form{display:flex;align-items:end;gap:20px;flex-wrap:wrap}label{display:grid;gap:6px;font-weight:600}
-button,select{font:inherit;border:1px solid #aab8ad;border-radius:8px;padding:8px 12px;background:white;color:inherit}
-button{background:#145446;color:white;cursor:pointer;border-color:#145446}button:disabled{opacity:.5;cursor:wait}
-input{accent-color:#145446}summary{cursor:pointer;font-weight:700}#comparison{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px}
-article:last-child{border-color:#145446}ol{padding-left:24px}li{padding:8px 0;border-bottom:1px solid #e9ece7}
-#favorites{flex-basis:100%;display:grid;grid-template-columns:minmax(200px,1fr) auto;gap:10px;align-items:end}
-#favorites[hidden],#dataset-user[hidden]{display:none}
-#favorites label:first-child,#pick-count{grid-column:1/-1}#movie-search{font:inherit;padding:8px;max-width:380px}
-#favorites select{width:100%;min-width:0}
-small{display:block;color:#42564c;margin-top:3px}table{border-collapse:collapse;width:100%;min-width:580px}
-td,th{text-align:left;padding:8px;border-bottom:1px solid #d9ded7}.scroll{overflow:auto}#status,#saved{min-height:1.4em}
+:root {
+  color-scheme: dark;
+  --page: #141414;
+  --surface: #1d1d1d;
+  --inset: #161616;
+  --border: #3f3f3f;
+  --text: #f4f4f4;
+  --muted: #c3c3c3;
+  --accent: #ffc279;
+  --accent-surface: #30251b;
+  --on-accent: #20160b;
+  --radius: 10px;
+  --gap: 16px;
+}
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { margin: 0; background: var(--page); color: var(--text); font: 16px/1.5 system-ui,sans-serif }
+main { width: min(100%, 1660px); margin: auto; padding: 24px clamp(16px,3vw,48px) 48px }
+header {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--gap);
+  border-bottom: 1px solid var(--border); padding: 4px 0 16px; margin-bottom: 18px
+}
+.views { display: flex; flex-wrap: wrap; gap: 8px }
+.views button[aria-pressed=true] { background: var(--accent-surface); border-color: var(--accent); color: var(--accent) }
+#evaluation-view > section + section { margin-top: var(--gap) }
+#metrics p { margin-bottom: 12px }
+h1 { margin: 0; font-size: clamp(1.85rem,4vw,2.75rem); line-height: 1.12; letter-spacing: -.045em }
+h2 { margin: 0; font-size: 1.2rem; line-height: 1.25 }
+p { margin: 8px 0 0; color: var(--muted) }
+.workspace { display: grid; grid-template-columns: minmax(270px,310px) minmax(0,1fr); gap: 24px; align-items: start }
+.controls-panel, .results-panel { min-width: 0 }
+section, .controls-panel > details, .results-panel > details, article {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--gap)
+}
+.controls-panel > details, .results-panel > section, .results-panel > details { margin-top: var(--gap) }
+#controls { display: grid; gap: var(--gap) }
+#judgment { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 12px }
+label { display: grid; min-width: 0; gap: 5px; font-size: .9rem; font-weight: 650 }
+button, select, input[type=search] {
+  font: inherit; color: inherit; background: var(--inset); border: 1px solid var(--border);
+  border-radius: var(--radius); min-height: 44px; padding: 8px 10px; max-width: 100%
+}
+button { cursor: pointer; font-weight: 700 }
+button:hover:not(:disabled) { border-color: var(--accent) }
+button:disabled { opacity: .55; cursor: default }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
+#run { background: var(--accent); color: var(--on-accent); border-color: var(--accent) }
+.modes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px }
+.modes button { font-size: .86rem; text-align: center }
+.modes button[aria-pressed=true] { background: var(--accent-surface); border-color: var(--accent); color: var(--accent) }
+.slider-label { display: flex; justify-content: space-between; gap: 8px }
+output { color: var(--accent); font-variant-numeric: tabular-nums }
+input[type=range] { accent-color: var(--accent); width: 100%; min-height: 28px; margin: 0 }
+#favorites { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: end }
+#favorites label:first-child, #pick-count { grid-column: 1/-1 }
+#favorites button { font-size: .8rem }
+#favorites select { width: 100%; min-width: 0 }
+#pick-count, #status, #saved { font-size: .875rem }
+#history { max-height: 13rem; overflow: auto; overflow-wrap: anywhere }
+summary { cursor: pointer; font-weight: 700 }
+#controls-title, #comparison-title { margin: 0 0 12px; font-size: 1.35rem }
+#comparison { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--gap) }
+article { min-width: 0 }
+.method-description { font-size: .9rem }
+.scores { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin: 12px 0 }
+.scores div { background: var(--inset); padding: 8px 4px; border-radius: var(--radius); text-align: center }
+.scores dt { font-size: .76rem; color: var(--muted) }
+.scores dd { margin: 0; font-size: 1.12rem; font-weight: 720; font-variant-numeric: tabular-nums }
+article details { margin-top: 8px; font-size: .875rem }
+article ol { padding-left: 24px; margin: 8px 0 }
+article li { padding: 8px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere }
+article li::marker { color: var(--accent); font-weight: 700 }
+small { display: block; color: var(--muted); margin-top: 3px }
+.scroll { overflow: auto }
+table { border-collapse: collapse; width: 100%; min-width: 580px }
+td, th { text-align: left; padding: 8px; border-bottom: 1px solid var(--border) }
+#other-methods > summary { min-height: 44px; align-content: center }
+#baselines { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--gap); margin-top: 12px }
+#comparison article, #baselines article { align-self: start }
+#favorites input, #favorites select, #dataset-user select { font-size: 1rem }
+#favorites label:not(:first-child), #favorites button { grid-column: 1/-1 }
+#favorites button { justify-self: start }
+#picked { grid-column: 1/-1; display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0 }
+#picked li { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding-left: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--inset); font-size: .875rem }
+#picked span { overflow-wrap: anywhere }
+#picked button { flex: 0 0 auto; min-width: 44px; padding: 0; border: 0; background: transparent; font-size: 1.1rem }
+#picked button:hover { color: var(--accent) }
+@media (max-width: 900px) { .workspace { grid-template-columns: minmax(0,1fr) } }
+@media (max-width: 560px) { #comparison, #baselines { grid-template-columns: minmax(0,1fr) } }
 </style>
 <main>
-<header><h1>Explainable Movie Recommender</h1><p>Compare four ways to rank 10 unseen movies from MovieLens 100K.</p></header>
-<section aria-label="Recommendation controls">
+<header>
+<h1>Explainable Movie Recommender</h1>
+<nav class="views" aria-label="Demo views">
+<button type="button" data-view="recommend" aria-controls="recommend-view" aria-pressed="true">Recommend</button>
+<button type="button" data-view="evaluation" aria-controls="evaluation-view" aria-pressed="false">Evaluation</button>
+</nav>
+</header>
+<div class="workspace" id="recommend-view">
+<aside class="controls-panel" aria-label="Recommendation controls">
+<h2 id="controls-title">Settings</h2>
+<section aria-labelledby="controls-title">
 <form id="controls">
-<label>Profile<select id="profile"><option value="dataset">MovieLens user</option><option value="custom">New user</option></select></label>
+<div class="modes" role="group" aria-label="Recommendation profile">
+<button type="button" data-profile="dataset" aria-pressed="true">MovieLens</button>
+<button type="button" data-profile="custom" aria-pressed="false">New user</button>
+</div>
+<select id="profile" hidden aria-label="Profile"><option value="dataset">MovieLens user</option><option value="custom">New user</option></select>
 <label id="dataset-user">MovieLens user<select id="user" required></select></label>
 <div id="favorites" hidden>
-<label>Search movies you watched and liked<input id="movie-search" type="search" placeholder="Search by title"></label>
-<label>Matching titles<select id="movie-matches"></select></label>
+<label>Search movies you watched and liked<input id="movie-search" type="search" placeholder="Try Toy Story or Aladdin" autocomplete="off"></label>
+<label>Matching titles<select id="movie-matches" disabled><option>Search above to find titles</option></select></label>
 <button type="button" id="add-movie" disabled>Add movie</button>
-<label>Selected movies<select id="picked"></select></label>
-<button type="button" id="remove-movie" disabled>Remove movie</button>
-<p id="pick-count" role="status">Select 3 to 20 movies.</p>
+<ul id="picked" aria-label="Selected movies" hidden></ul>
+<p id="pick-count" role="status">Add at least 3 movies to unlock recommendations.</p>
 </div>
-<label>Diversity <output id="dval">0.45</output><input id="diversity" type="range" min="0" max="1" step="0.05" value="0.45"></label>
-<label>Genre balance <output id="bval">0.30</output><input id="balance" type="range" min="0" max="1" step="0.05" value="0.30"></label>
+<label><span class="slider-label">Diversity <output id="dval">0.45</output></span><input id="diversity" type="range" min="0" max="1" step="0.05" value="0.45"></label>
+<label><span class="slider-label">Genre balance <output id="bval">0.30</output></span><input id="balance" type="range" min="0" max="1" step="0.05" value="0.30"></label>
 <button id="run" disabled>Get recommendations</button>
 </form>
 <p id="status" role="status"></p>
 </section>
 <details><summary id="history-label">User history</summary><p id="history"></p></details>
-<div id="comparison"></div>
-<section>
+</aside>
+<div class="results-panel">
+<h2 id="comparison-title" hidden>Top-k vs QUBO</h2>
+<div id="comparison" aria-labelledby="comparison-title"></div>
+<details id="other-methods" hidden>
+<summary>Compare MMR and Genre quota</summary>
+<div id="baselines"></div>
+</details>
+</div>
+</div>
+<div id="evaluation-view" hidden>
+<section aria-labelledby="evaluation-title">
+<h2 id="evaluation-title">Offline evaluation</h2>
+<div class="scroll" id="metrics"></div>
+</section>
+<section id="feedback-panel">
 <h2>Record your judgment</h2>
 <form id="judgment">
 <label>Most relevant list<select id="relevance" required></select></label>
@@ -51,7 +151,7 @@ td,th{text-align:left;padding:8px;border-bottom:1px solid #d9ded7}.scroll{overfl
 </form>
 <p id="saved" role="status"></p>
 </section>
-<details><summary>Offline evaluation</summary><div class="scroll" id="metrics"></div></details>
+</div>
 </main>
 <script>
 const el = id => document.getElementById(id);
@@ -74,27 +174,75 @@ function table(headers, rows) {
   }
   return result;
 }
+const descriptions = {
+  'Top-k': 'Highest relevance scores',
+  'MMR': 'Relevance with a redundancy penalty',
+  'Genre quota': 'Relevance with per-genre limits',
+  'QUBO': 'Balances relevance, variety and genre coverage'
+};
 function render(methods) {
   const cards = Object.entries(methods).map(([name, result]) => {
     const card = node('article', '');
-    card.append(node('h2', name),
-      node('p', 'Relevance ' + result.relevance.toFixed(2) +
-        ' · Similarity ' + result.similarity.toFixed(3) +
-        ' · Genre gap ' + result.genre_error.toFixed(2)),
-      node('small', 'Genre exposure: ' + Object.entries(result.exposure)
-        .map(([genre, value]) => genre + ' ' + value.toFixed(2)).join(' · ')));
-    const list = node('ol', '');
-    for (const movie of result.movies) {
+    card.dataset.method = name;
+    const description = node('p', descriptions[name]);
+    description.className = 'method-description';
+    const scores = node('dl', '');
+    scores.className = 'scores';
+    for (const [label, value] of [
+      ['Relevance', result.relevance.toFixed(2)],
+      ['Similarity', result.similarity.toFixed(3)],
+      ['Genre gap', result.genre_error.toFixed(2)]
+    ]) {
+      const metric = node('div', '');
+      metric.append(node('dt', label), node('dd', value));
+      scores.append(metric);
+    }
+    const exposure = node('details', '');
+    exposure.append(node('summary', 'Genre breakdown'), node('small',
+      Object.entries(result.exposure).map(([genre, value]) => genre + ' ' + value.toFixed(2)).join(', ')));
+    const preview = node('ol', '');
+    const remaining = node('ol', '');
+    remaining.start = 4;
+    result.movies.forEach((movie, index) => {
       const entry = node('li', '');
       entry.append(node('strong', movie.title),
-        node('small', movie.genres.join(' · ') + ' | relevance ' + movie.relevance.toFixed(2)),
+        node('small', movie.genres.join(', ') + ' | relevance ' + movie.relevance.toFixed(2)),
         node('small', movie.reasons.length ? 'Related to: ' + movie.reasons.join(', ') : 'No matching history items'));
-      list.append(entry);
-    }
-    card.append(list);
+      (index < 3 ? preview : remaining).append(entry);
+    });
+    const more = node('details', '');
+    more.append(node('summary', 'Show 7 more movies'), remaining);
+    more.addEventListener('toggle', () => {
+      more.firstElementChild.textContent = more.open ? 'Hide 7 movies' : 'Show 7 more movies';
+    });
+    card.append(node('h2', name), description, scores, exposure, preview, more);
     return card;
   });
-  el('comparison').replaceChildren(...cards);
+  el('comparison').replaceChildren(...cards.filter(card =>
+    card.dataset.method === 'Top-k' || card.dataset.method === 'QUBO'));
+  el('baselines').replaceChildren(...cards.filter(card =>
+    card.dataset.method === 'MMR' || card.dataset.method === 'Genre quota'));
+  el('comparison-title').hidden = el('other-methods').hidden = false;
+}
+const viewButtons = [...document.querySelectorAll('[data-view]')];
+for (const button of viewButtons) {
+  button.addEventListener('click', () => {
+    for (const item of viewButtons) {
+      const active = item === button;
+      item.setAttribute('aria-pressed', String(active));
+      el(item.getAttribute('aria-controls')).hidden = !active;
+    }
+    window.scrollTo(0, 0);
+  });
+}
+const modeButtons = [...document.querySelectorAll('[data-profile]')];
+for (const button of modeButtons) {
+  button.addEventListener('click', () => {
+    if (el('profile').value === button.dataset.profile) return;
+    el('profile').value = button.dataset.profile;
+    for (const item of modeButtons) item.setAttribute('aria-pressed', String(item === button));
+    el('profile').dispatchEvent(new Event('change'));
+  });
 }
 let displayed;
 let catalog;
@@ -112,12 +260,25 @@ function renderMatches() {
     ? catalog.filter(movie => !favorites.has(movie.id) && movie.title.toLowerCase().includes(query)).slice(0, 20)
     : [];
   el('movie-matches').replaceChildren(...matches.map(movie => new Option(movie.title, movie.id)));
-  el('add-movie').disabled = matches.length === 0;
+  if (!matches.length) el('movie-matches').add(new Option(query ? 'No matching titles' : 'Search above to find titles', ''));
+  el('movie-matches').disabled = el('add-movie').disabled = matches.length === 0;
 }
 
 function renderFavorites() {
-  el('picked').replaceChildren(...[...favorites].map(([id, title]) => new Option(title, id)));
-  el('remove-movie').disabled = favorites.size === 0;
+  el('picked').replaceChildren(...[...favorites].map(([id, title]) => {
+    const item = node('li', '');
+    const remove = node('button', '\u00d7');
+    remove.type = 'button';
+    remove.setAttribute('aria-label', 'Remove ' + title);
+    remove.addEventListener('click', () => {
+      favorites.delete(id);
+      renderFavorites();
+      el('movie-search').focus();
+    });
+    item.append(node('span', title), remove);
+    return item;
+  }));
+  el('picked').hidden = favorites.size === 0;
   el('pick-count').textContent = favorites.size + ' selected. Choose 3 to 20 movies.';
   renderMatches();
   updateRunButton();
@@ -138,15 +299,17 @@ el('add-movie').addEventListener('click', () => {
   renderFavorites();
   el('movie-search').focus();
 });
-el('remove-movie').addEventListener('click', () => {
-  favorites.delete(Number(el('picked').value));
-  renderFavorites();
-});
 el('profile').addEventListener('change', async () => {
   const custom = customMode();
+  el('comparison').replaceChildren();
+  el('baselines').replaceChildren();
+  el('comparison-title').hidden = el('other-methods').hidden = true;
+  el('history-label').parentElement.hidden = true;
+  displayed = undefined;
+  el('status').textContent = custom ? 'Search for three movies you watched and liked.' : '';
   el('dataset-user').hidden = custom;
   el('favorites').hidden = !custom;
-  el('judgment').closest('section').hidden = custom;
+  el('feedback-panel').hidden = custom;
   el('save').disabled = custom || !displayed;
   updateRunButton();
   if (custom && !catalog) {
@@ -157,6 +320,8 @@ el('profile').addEventListener('change', async () => {
       el('status').textContent = error.message;
     }
   }
+  if (custom && customMode()) el('movie-search').focus();
+  if (!custom) recommend();
 });
 async function recommend(event) {
   if (event) event.preventDefault();
@@ -173,11 +338,13 @@ async function recommend(event) {
   requesting = true;
   el('profile').disabled = true;
   el('run').disabled = el('save').disabled = true;
+  for (const button of modeButtons) button.disabled = true;
   el('status').textContent = 'Generating recommendations…';
   el('saved').textContent = '';
   try {
     const data = await request('/api/recommend?' + query);
     render(data.methods);
+    el('history-label').parentElement.hidden = false;
     el('history-label').textContent = 'User history (' + data.history.length + ' movies)';
     el('history').textContent = data.history.join(' · ');
     el('status').textContent = (custom ? 'Showing new user' : 'Showing user ' + settings.user) + ' · diversity ' +
@@ -189,6 +356,7 @@ async function recommend(event) {
   } finally {
     requesting = false;
     el('profile').disabled = false;
+    for (const button of modeButtons) button.disabled = false;
     updateRunButton();
     el('save').disabled = !displayed;
   }
